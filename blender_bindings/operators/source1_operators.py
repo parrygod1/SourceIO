@@ -2,28 +2,28 @@ from pathlib import Path
 
 import bpy
 from bpy.props import (BoolProperty, CollectionProperty, EnumProperty,
-                       StringProperty)
+                       FloatProperty, StringProperty)
 
-from .import_settings_base import ModelOptions, Source1BSPSettings
-from ..models import import_model
-from ..models.common import put_into_collections
-from ..utils.bpy_utils import get_or_create_material
+from .import_settings_base import MDLSettings, Source1BSPSettings
+from ..source1.mdl import put_into_collections
+from ..source1.mdl.v49.import_mdl import import_animations
 from ..utils.resource_utils import serialize_mounted_content, deserialize_mounted_content
 from ...library.shared.content_providers.content_manager import ContentManager
 from ..source1.vtf import import_texture, load_skybox_texture
-from ...library.utils import FileBuffer
+# from ..source1.vtf.export_vtf import export_texture
 
-from ...logger import SourceLogMan
+from ...logger import SLoggingManager
 from ..material_loader.material_loader import Source1MaterialLoader
 from ..material_loader.shaders.source1_shader_base import Source1ShaderBase
-from ..source1.bsp.import_bsp import import_bsp
+from ..source1.bsp.import_bsp import BSP
 from ..source1.dmx.load_sfm_session import load_session
+from ..source1.mdl.model_loader import import_model_from_full_path
 
-logger = SourceLogMan().get_logger("SourceIO::Operators")
+logger = SLoggingManager().get_logger("SourceIO::Operators")
 
 
 # noinspection PyPep8Naming
-class SOURCEIO_OT_MDLImport(bpy.types.Operator, ModelOptions):
+class SOURCEIO_OT_MDLImport(bpy.types.Operator, MDLSettings):
     """Load Source Engine MDL models"""
     bl_idname = "sourceio.mdl"
     bl_label = "Import Source MDL file"
@@ -32,9 +32,11 @@ class SOURCEIO_OT_MDLImport(bpy.types.Operator, ModelOptions):
     discover_resources: BoolProperty(name="Mount discovered content", default=True)
     filepath: StringProperty(subtype="FILE_PATH")
     files: CollectionProperty(name='File paths', type=bpy.types.OperatorFileListElement)
-    filter_glob: StringProperty(default="*.mdl;*.md3", options={'HIDDEN'})
+    filter_glob: StringProperty(default="*.mdl", options={'HIDDEN'})
 
     def execute(self, context):
+        from ..source1.mdl.v49.import_mdl import import_materials
+
         if Path(self.filepath).is_file():
             directory = Path(self.filepath).parent.resolve()
         else:
@@ -48,17 +50,28 @@ class SOURCEIO_OT_MDLImport(bpy.types.Operator, ModelOptions):
 
         for file in self.files:
             mdl_path = directory / file.name
-            with FileBuffer(mdl_path) as f:
-                model_container = import_model(mdl_path, f, content_manager, self, None)
-
-            put_into_collections(model_container, mdl_path.stem, bodygroup_grouping=self.bodygroup_grouping)
-            # if self.import_animations and model_container.armature:
-            #     import_animations(content_manager, model_container.mdl, model_container.armature, self.scale)
-            # if self.write_qc:
-            #     from ... import bl_info
-            #     from ...library.source1.qc.qc import generate_qc
-            #     qc_file = bpy.data.texts.new('{}.qc'.format(Path(file.name).stem))
-            #     generate_qc(model_container.mdl, qc_file, ".".join(map(str, bl_info['version'])))
+            model_container = import_model_from_full_path(mdl_path, self.scale, self.create_flex_drivers,
+                                                          unique_material_names=self.unique_materials_names,
+                                                          bodygroup_grouping=self.bodygroup_grouping,
+                                                          load_physics=self.import_physics,
+                                                          load_refpose=self.load_refpose)
+            put_into_collections(model_container, Path(model_container.mdl.header.name).stem,
+                                 bodygroup_grouping=self.bodygroup_grouping)
+            if self.import_textures:
+                try:
+                    import_materials(model_container.mdl, unique_material_names=self.unique_materials_names,
+                                     use_bvlg=self.use_bvlg)
+                except Exception as t_ex:
+                    logger.error(f'Failed to import materials, caused by {t_ex}')
+                    import traceback
+                    traceback.print_exc()
+            if self.import_animations and model_container.armature:
+                import_animations(content_manager, model_container.mdl, model_container.armature, self.scale)
+            if self.write_qc:
+                from ... import bl_info
+                from ...library.source1.qc.qc import generate_qc
+                qc_file = bpy.data.texts.new('{}.qc'.format(Path(file.name).stem))
+                generate_qc(model_container.mdl, qc_file, ".".join(map(str, bl_info['version'])))
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -94,7 +107,7 @@ class SOURCEIO_OT_RigImport(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
 
-# noinspection PyPep8Naming
+# noinspection PyUnresolvedReferences,PyPep8Naming
 class SOURCEIO_OT_BSPImport(bpy.types.Operator, Source1BSPSettings):
     """Load Source Engine BSP models"""
     bl_idname = "sourceio.bsp"
@@ -111,12 +124,21 @@ class SOURCEIO_OT_BSPImport(bpy.types.Operator, Source1BSPSettings):
             content_manager.scan_for_content(self.filepath)
         else:
             deserialize_mounted_content(content_manager)
-        with FileBuffer(Path(self.filepath)) as f:
-            import_bsp(Path(self.filepath), f, content_manager, self)
+
+        bsp_map = BSP(self.filepath, content_manager, self)
 
         if self.discover_resources:
             serialize_mounted_content(content_manager)
 
+        bsp_map.load_disp()
+        bsp_map.load_entities()
+        bsp_map.load_static_props()
+        if self.import_cubemaps:
+            bsp_map.load_cubemap()
+        # if self.import_decal:
+        #     bsp_map.load_overlays()
+        if self.import_textures:
+            bsp_map.load_materials(self.use_bvlg)
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -211,7 +233,7 @@ class SOURCEIO_OT_SkyboxImport(bpy.types.Operator):
         else:
             deserialize_mounted_content(content_manager)
         for file in self.files:
-            skybox_name = path_stem(file.name)
+            skybox_name = Path(file.name).stem
             load_skybox_texture(skybox_name[:-2], int(self.resolution))
         return {'FINISHED'}
 
@@ -250,16 +272,14 @@ class SOURCEIO_OT_VMTImport(bpy.types.Operator):
             directory = Path(self.filepath).absolute()
         for file in self.files:
             Source1ShaderBase.use_bvlg(self.use_bvlg)
-            file_path = Path(file.name)
-            mat = get_or_create_material(file_path.stem, file_path.as_posix())
-            loader = Source1MaterialLoader((directory / file.name).open('rb'), file_path.stem)
-            bpy_material = bpy.data.materials.get(loader.material_name, dict())
+            mat = Source1MaterialLoader((directory / file.name).open('rb'), Path(file.name).stem)
+            bpy_material = bpy.data.materials.get(mat.material_name, dict())
             if bpy_material.get('source_loaded'):
                 if self.override:
                     del bpy_material['source_loaded']
                 else:
                     self.report({'INFO'}, '{} material already exists')
-            loader.create_material(mat)
+            mat.create_material()
         content_manager.clean()
         return {'FINISHED'}
 

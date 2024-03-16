@@ -1,27 +1,24 @@
 import math
 from functools import partial
 from pathlib import Path
+from typing import Optional
+
 import bpy
 
-from ...models import import_model
-from ...models.common import put_into_collections
-from ...operators.import_settings_base import ModelOptions
 from ....library.shared.content_providers.content_manager import ContentManager
 from ....library.utils.math_utilities import parse_hammer_vector
-from ...utils.bpy_utils import get_new_unique_collection, get_or_create_collection
+from ...utils.utils import get_new_unique_collection, get_or_create_collection
 
 content_manager = ContentManager()
 
 
-def handle_generic_model_prop(entity_data, scale, parent_collection, fix_rotation=True, single_collection=False):
+def handle_generic_model_prop(entity_data, scale, parent_collection, fix_rotation=True):
     model_name = Path(entity_data['model'])
-    return handle_model_prop(model_name, entity_data, scale, parent_collection,
-                             single_collection=single_collection,
-                             fix_rotation=fix_rotation)
+    return handle_model_prop(model_name, entity_data, scale, parent_collection, fix_rotation=fix_rotation)
 
 
 def handle_model_prop_with_collection(model_name, group_collection_name, entity_data, scale, parent_collection,
-                                      fix_rotation=True, single_collection=False):
+                                      single_collection, fix_rotation=True):
     if not single_collection:
         group_collection = get_or_create_collection(group_collection_name, parent_collection)
         parent_collection = get_or_create_collection(entity_data["classname"], group_collection)
@@ -30,6 +27,8 @@ def handle_model_prop_with_collection(model_name, group_collection_name, entity_
 
 
 def handle_model_prop(model_name, entity_data, scale, parent_collection, fix_rotation=True, single_collection=False):
+    from .. import import_model
+
     origin = parse_hammer_vector(entity_data.get('origin', '0 0 0')) * scale
     angles = [math.radians(a) for a in parse_hammer_vector(entity_data.get('angles', '0 0 0'))]
 
@@ -46,16 +45,11 @@ def handle_model_prop(model_name, entity_data, scale, parent_collection, fix_rot
             master_collection = parent_collection
         else:
             master_collection = get_new_unique_collection(target_name, parent_collection)
-        opts = ModelOptions()
-        opts.scale = scale
-        opts.bodygroup_grouping = True
-        opts.create_flex_drivers = False
-        opts.import_physics = True
-        opts.import_textures = True
-        opts.use_bvlg = False
-        model_container = import_model(model_name, mdl_buffer, content_manager, opts, None)
-        put_into_collections(model_container, target_name, master_collection, opts.bodygroup_grouping)
-        # master_collection, disable_collection_sort=True, re_use_meshes=True)
+        model_texture_path = content_manager.find_file(str(model_name.with_name(model_name.stem + 't.mdl')))
+        model_container = import_model(model_name,
+                                       mdl_buffer,
+                                       model_texture_path if model_texture_path is not None else None, scale,
+                                       master_collection, disable_collection_sort=True, re_use_meshes=True)
         if model_container.armature:
             model_container.armature.location = origin
             model_container.armature.rotation_euler = angles

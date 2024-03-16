@@ -1,4 +1,5 @@
-from ....utils.bpy_utils import is_blender_4
+import bpy
+
 from ...shader_base import Nodes
 from ..source1_shader_base import Source1ShaderBase
 from .detail import DetailSupportMixin
@@ -190,9 +191,8 @@ class VertexLitGeneric(DetailSupportMixin, Source1ShaderBase):
             color_value = [color_value[0], color_value[0], color_value[0]]
         return self.ensure_length(color_value, 4, 1.0)
 
-    def create_nodes(self, material):
-        print(f"BVLG: {self.use_bvlg_status}")
-        if super().create_nodes(material) in ['UNKNOWN', 'LOADED']:
+    def create_nodes(self, material_name):
+        if super().create_nodes(material_name) in ['UNKNOWN', 'LOADED']:
             return
 
         if 'proxies' in self._vmt:
@@ -200,18 +200,12 @@ class VertexLitGeneric(DetailSupportMixin, Source1ShaderBase):
             for proxy_name, proxy_data in proxies.items():
                 if proxy_name == 'selectfirstifnonzero':
                     result_var = proxy_data.get('resultvar')
-                    if result_var not in self._vmt:
-                        continue
                     src1_var = proxy_data.get('srcvar1')
                     src2_var = proxy_data.get('srcvar2')
                     src1_value, src1_type = self._vmt.get_vector(src1_var, [0])
                     if all([val > 0 for val in src1_value]):
-                        if src1_var not in self._vmt:
-                            continue
                         self._vmt[result_var] = self._vmt[src1_var]
                     else:
-                        if src2_var not in self._vmt:
-                            continue
                         self._vmt[result_var] = self._vmt[src2_var]
 
         material_output = self.create_node(Nodes.ShaderNodeOutputMaterial)
@@ -364,11 +358,7 @@ class VertexLitGeneric(DetailSupportMixin, Source1ShaderBase):
                     basetexture_additive_mix_node.inputs['Color2'].default_value = (1.0, 1.0, 1.0, 1.0)
 
                     self.connect_nodes(basetexture_node.outputs['Color'], basetexture_invert_node.inputs['Color'])
-                    if is_blender_4():
-                        self.connect_nodes(basetexture_invert_node.outputs['Color'],
-                                           shader.inputs['Transmission Weight'])
-                    else:
-                        self.connect_nodes(basetexture_invert_node.outputs['Color'], shader.inputs['Transmission'])
+                    self.connect_nodes(basetexture_invert_node.outputs['Color'], shader.inputs['Transmission'])
                     self.connect_nodes(basetexture_invert_node.outputs['Color'],
                                        basetexture_additive_mix_node.inputs['Fac'])
 
@@ -391,24 +381,16 @@ class VertexLitGeneric(DetailSupportMixin, Source1ShaderBase):
                         selfillummask_node.image = selfillummask
                         if 'Emission Strength' in shader.inputs:
                             self.connect_nodes(selfillummask_node.outputs['Color'], shader.inputs['Emission Strength'])
+
                     else:
                         if 'Emission Strength' in shader.inputs:
                             self.connect_nodes(basetexture_node.outputs['Alpha'], shader.inputs['Emission Strength'])
-                    if is_blender_4():
-                        self.connect_nodes(basetexture_node.outputs['Color'], shader.inputs['Emission Color'])
-                    else:
-                        self.connect_nodes(basetexture_node.outputs['Color'], shader.inputs['Emission'])
+                    self.connect_nodes(basetexture_node.outputs['Color'], shader.inputs['Emission'])
 
             if not self.phong:
-                if is_blender_4():
-                    shader.inputs['Specular IOR Level'].default_value = 0
-                else:
-                    shader.inputs['Specular'].default_value = 0
+                shader.inputs['Specular'].default_value = 0
             elif self.phongboost is not None:
-                if is_blender_4():
-                    shader.inputs['Specular IOR Level'].default_value = self.clamp_value(self.phongboost / 64)
-                else:
-                    shader.inputs['Specular'].default_value = self.clamp_value(self.phongboost / 64)
+                shader.inputs['Specular'].default_value = self.clamp_value(self.phongboost / 64)
             phongexponenttexture = self.phongexponenttexture
             if self.phongexponent is not None and phongexponenttexture is None:
                 shader.inputs['Roughness'].default_value = self.clamp_value(self.phongexponent / 256)

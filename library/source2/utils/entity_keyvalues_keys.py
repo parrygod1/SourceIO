@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from ....logger import SourceLogMan
+from ....logger import SLoggingManager
 from ...utils.singleton import SingletonMeta
 from .murmurhash2 import murmur_hash2
 
@@ -15,7 +15,7 @@ class EntityKeyValuesKeys(metaclass=SingletonMeta):
     _all_keys = []
 
     def __init__(self):
-        self.logger = SourceLogMan().get_logger('Source2 Entities')
+        self.logger = SLoggingManager().get_logger('Source2 Entities')
         self.logger.info('Loading keys')
         if not self.lookup_table:
             if self._json_path.exists():

@@ -2,11 +2,11 @@ import traceback
 from math import radians
 from typing import IO, Union
 
-from ....logger import SourceLogMan
+from ....logger import SLoggingManager
 from ...shared.content_providers.content_manager import ContentManager
 from ...utils.kv_parser import ValveKeyValueParser, KVDataProxy, KVLexerException
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 logger = log_manager.get_logger('Source1::VMT')
 
 

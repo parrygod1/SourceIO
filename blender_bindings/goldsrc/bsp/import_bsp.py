@@ -6,24 +6,26 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-from SourceIO.library.goldsrc.bsp.bsp_file import BspFile
-from SourceIO.library.goldsrc.bsp.lump import LumpType
-from SourceIO.library.goldsrc.bsp.lumps.edge_lump import EdgeLump
-from SourceIO.library.goldsrc.bsp.lumps.entity_lump import EntityLump
-from SourceIO.library.goldsrc.bsp.lumps.face_lump import FaceLump
-from SourceIO.library.goldsrc.bsp.lumps.model_lump import ModelLump
-from SourceIO.library.goldsrc.bsp.lumps.surface_edge_lump import SurfaceEdgeLump
-from SourceIO.library.goldsrc.bsp.lumps.texture_data import TextureDataLump
-from SourceIO.library.goldsrc.bsp.lumps.texture_info import TextureInfoLump
-from SourceIO.library.goldsrc.bsp.lumps.vertex_lump import VertexLump
-from SourceIO.library.goldsrc.bsp.structs.texture import TextureInfo
-from SourceIO.library.models.mdl.v10.structs.texture import StudioTexture
-from SourceIO.library.goldsrc.rad import convert_light_value, parse_rad
-from SourceIO.library.shared.content_providers.content_manager import ContentManager
-from SourceIO.library.shared.content_providers.goldsrc_content_provider import GoldSrcWADContentProvider
-from SourceIO.library.utils.math_utilities import convert_to_radians, parse_hammer_vector
-from SourceIO.library.utils.path_utilities import backwalk_file_resolver
-from SourceIO.logger import SourceLogMan
+from ....library.goldsrc.bsp.bsp_file import BspFile
+from ....library.goldsrc.bsp.lump import LumpType
+from ....library.goldsrc.bsp.lumps.edge_lump import EdgeLump
+from ....library.goldsrc.bsp.lumps.entity_lump import EntityLump
+from ....library.goldsrc.bsp.lumps.face_lump import FaceLump
+from ....library.goldsrc.bsp.lumps.model_lump import ModelLump
+from ....library.goldsrc.bsp.lumps.surface_edge_lump import SurfaceEdgeLump
+from ....library.goldsrc.bsp.lumps.texture_data import TextureDataLump
+from ....library.goldsrc.bsp.lumps.texture_info import TextureInfoLump
+from ....library.goldsrc.bsp.lumps.vertex_lump import VertexLump
+from ....library.goldsrc.bsp.structs.texture import TextureInfo
+from ....library.goldsrc.mdl_v10.structs.texture import StudioTexture
+from ....library.goldsrc.rad import convert_light_value, parse_rad
+from ....library.shared.content_providers.content_manager import ContentManager
+from ....library.shared.content_providers.goldsrc_content_provider import \
+    GoldSrcWADContentProvider
+from ....library.utils.math_utilities import (convert_to_radians,
+                                              parse_hammer_vector)
+from ....library.utils.path_utilities import backwalk_file_resolver
+from ....logger import SLoggingManager
 from ...goldsrc.bsp.entity_handlers import entity_handlers
 from ...material_loader.shaders.goldsrc_shaders.goldsrc_shader import \
     GoldSrcShader
@@ -33,16 +35,15 @@ from ...material_loader.shaders.goldsrc_shaders.goldsrc_shader_mode2 import \
     GoldSrcShaderMode2
 from ...material_loader.shaders.goldsrc_shaders.goldsrc_shader_mode5 import \
     GoldSrcShaderMode5
-from ...utils.bpy_utils import add_material, get_or_create_collection, get_or_create_material
+from ...utils.utils import add_material, get_or_create_collection
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 content_manager = ContentManager()
 
 
 class BSP:
-    def __init__(self, map_path: Path, *, scale=1.0, single_collection=False, fix_rotation=True):
+    def __init__(self, map_path: Path, *, scale=1.0, single_collection=False):
         self.map_path = map_path
-        self.fix_rotation = fix_rotation
         self.bsp_name = map_path.stem
         self.logger = log_manager.get_logger(self.bsp_name)
         self.logger.info(f'Loading map "{self.bsp_name}"')
@@ -128,9 +129,8 @@ class BSP:
                 rad_data = [r, g, b, power]
             else:
                 rad_data = None
-            mat = get_or_create_material(material_name, material_name)
             shader = GoldSrcShader(studio_texture)
-            shader.create_nodes(mat, rad_data)
+            shader.create_nodes(material_name, rad_data)
             shader.align_nodes()
 
     def load_materials(self):
@@ -168,8 +168,7 @@ class BSP:
             face_texture_info = self.bsp_lump_textures_info.values[texture_info_index]
             face_texture_data = self.bsp_lump_textures_data.values[face_texture_info.texture]
             face_texture_name = face_texture_data.name
-            material = get_or_create_material(face_texture_name, face_texture_name)
-            material_lookup_table[texture_info_index] = add_material(material, model_object)
+            material_lookup_table[texture_info_index] = add_material(face_texture_name, model_object)
             self.load_material(face_texture_name)
 
         uvs_per_face = []
@@ -238,8 +237,7 @@ class BSP:
             entity_class: str = entity['classname']
 
             if entity_class in entity_handlers:
-                entity_handlers[entity_class](entity, self.scale, self.bsp_collection, self.fix_rotation,
-                                              self._single_collection)
+                entity_handlers[entity_class](entity, self.scale, self.bsp_collection, self._single_collection)
             else:
                 if entity_class == 'worldspawn':
                     for game_wad_path in entity.get('wad', '').split(';'):
@@ -254,8 +252,7 @@ class BSP:
                 elif entity_class.startswith('monster_') and 'model' in entity:
                     from .entity_handlers import handle_generic_model_prop
                     entity_collection = self.get_collection(entity_class)
-                    handle_generic_model_prop(entity, self.scale, entity_collection, self.fix_rotation,
-                                              self._single_collection)
+                    handle_generic_model_prop(entity, self.scale, entity_collection)
                 elif entity_class.startswith('trigger'):
                     self.load_trigger(entity_class, entity)
                 elif entity_class.startswith('func'):
@@ -297,7 +294,7 @@ class BSP:
                 else:
                     self.logger.warn(f'Skipping unsupported entity \'{entity_class}\': {entity}')
 
-    def load_trigger(self, entity_class: str, entity_data: dict[str, Any]):
+    def load_trigger(self, entity_class: str, entity_data: Dict[str, Any]):
         if self._single_collection:
             entity_collection = self.get_collection(entity_class)
         else:
@@ -329,7 +326,7 @@ class BSP:
         vertex_colors = np.full((len(vertex_indices), 4), np.array([*color, 1], np.float32))
         vertex_colors_data.foreach_set('color', vertex_colors.flatten())
 
-    def load_brush(self, entity_class: str, entity_data: dict[str, Any], type_collection_name: str):
+    def load_brush(self, entity_class: str, entity_data: Dict[str, Any], type_collection_name: str):
         entity_collection = self.get_collection(entity_class, type_collection_name)
         if 'model' not in entity_data:
             self.logger.warn(f'Brush "{entity_class}" does not reference any models')
@@ -355,17 +352,15 @@ class BSP:
                                    (render_amount / 255, render_amount / 255, render_amount / 255))
 
             if render_mode == 0:
-                return
+                pass
             elif render_mode == 1:
                 self._set_vertex_color(model_object.data, 'RENDER_COLOR', ([c / 255 for c in render_color]))
 
             for model_material_index, model_material in enumerate(model_object.data.materials):
                 studio_texture = self._texture_info_to_studio_texture(model_material.name)
                 mode_mat_name = f'{model_material.name}_RM{render_mode}'
-                if mode_mat_name in bpy.data.materials:
-                    mode_mat = bpy.data.materials[mode_mat_name]
-                else:
-                    mode_mat = get_or_create_material(mode_mat_name, mode_mat_name)
+                mode_mat = bpy.data.materials.get(mode_mat_name, None)
+                if mode_mat is None:
                     if model_material.name in self.rad_data:
                         rad_data = self.rad_data[model_material.name]
                         r, g, b, power = rad_data
@@ -374,24 +369,25 @@ class BSP:
                     else:
                         rad_data = None
                     if render_mode == 0:
-                        loader = GoldSrcShader(studio_texture)
+                        mode_mat = GoldSrcShader(studio_texture)
                     elif render_mode == 1:
-                        loader = GoldSrcShaderMode1(studio_texture)
+                        mode_mat = GoldSrcShaderMode1(studio_texture)
                     elif render_mode == 2:
-                        loader = GoldSrcShaderMode2(studio_texture)
+                        mode_mat = GoldSrcShaderMode2(studio_texture)
                     elif render_mode == 3:
-                        loader = GoldSrcShaderMode2(studio_texture)
+                        mode_mat = GoldSrcShaderMode2(studio_texture)
                     elif render_mode == 4:
-                        loader = GoldSrcShaderMode2(studio_texture)
+                        mode_mat = GoldSrcShaderMode2(studio_texture)
                     elif render_mode == 5:
-                        loader = GoldSrcShaderMode5(studio_texture)
+                        mode_mat = GoldSrcShaderMode5(studio_texture)
                     else:
-                        loader = GoldSrcShader(studio_texture)
-                    loader.create_nodes(mode_mat, rad_data)
-                    if render_mode < 255:
-                        mode_mat.blend_method = 'HASHED'
-                        mode_mat.shadow_method = 'HASHED'
-                model_object.data.materials[model_material_index] = mode_mat
+                        mode_mat = GoldSrcShader(studio_texture)
+                    mode_mat.create_nodes(mode_mat_name, rad_data)
+                material = bpy.data.materials[mode_mat_name]
+                if render_mode < 255:
+                    material.blend_method = 'HASHED'
+                    material.shadow_method = 'HASHED'
+                model_object.data.materials[model_material_index] = material
 
     def _get_light_angles(self, entity_data):
         angles = convert_to_radians(parse_hammer_vector(entity_data.get('angles', '0 0 0')))
@@ -403,7 +399,7 @@ class BSP:
             angles[1] = pitch
         return angles
 
-    def load_light_spot(self, entity_class: str, entity_data: dict[str, Any], type_collection_name: str):
+    def load_light_spot(self, entity_class: str, entity_data: Dict[str, Any], type_collection_name: str):
         entity_collection = self.get_collection(entity_class, type_collection_name)
         origin = parse_hammer_vector(entity_data.get('origin', '0 0 0')) * self.scale
         angles = self._get_light_angles(entity_data)
@@ -421,8 +417,6 @@ class BSP:
         light.rotation_euler = angles
 
     def load_light(self, entity_class, entity_data, type_collection_name: str):
-        if "_light" not in entity_data:
-            return
         entity_collection = self.get_collection(entity_class, type_collection_name)
         origin = parse_hammer_vector(entity_data.get('origin', '0 0 0')) * self.scale
         color = parse_hammer_vector(entity_data['_light'])
@@ -433,8 +427,6 @@ class BSP:
         light.location = origin
 
     def load_light_environment(self, entity_class, entity_data, type_collection_name: str):
-        if "_light" not in entity_data:
-            return
         entity_collection = self.get_collection(entity_class, type_collection_name)
         origin = parse_hammer_vector(entity_data.get('origin', '0 0 0')) * self.scale
         angles = self._get_light_angles(entity_data)
@@ -468,7 +460,7 @@ class BSP:
         lamp.scale *= self.scale * 10
         return lamp
 
-    def load_general_entity(self, entity_class: str, entity_data: dict[str, Any], type_collection_name: str):
+    def load_general_entity(self, entity_class: str, entity_data: Dict[str, Any], type_collection_name: str):
         entity_collection = self.get_collection(entity_class, type_collection_name)
         origin = parse_hammer_vector(entity_data.get('origin', '0 0 0')) * self.scale
         angles = convert_to_radians(parse_hammer_vector(entity_data.get('angles', '0 0 0')))
@@ -486,7 +478,7 @@ class BSP:
         placeholder['entity_data'] = {'entity': entity_data}
         entity_collection.objects.link(placeholder)
 
-    def load_path_track(self, entity_class: str, entity_data: dict[str, Any], type_collection_name: str):
+    def load_path_track(self, entity_class: str, entity_data: Dict[str, Any], type_collection_name: str):
         entity_collection = self.get_collection(entity_class, type_collection_name)
         start_name = entity_data['targetname']
         points = []

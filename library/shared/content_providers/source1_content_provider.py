@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Iterator, Optional, Union
+from typing import Iterator, List, Optional, Tuple, Union
 
 from ...utils import Buffer, FileBuffer
 from ...utils.gameinfo_parser import GameInfoParser
@@ -9,7 +9,7 @@ from .content_provider_base import ContentProviderBase
 
 
 class GameinfoContentProvider(ContentProviderBase):
-    path_cache: list[Path] = []
+    path_cache: List[Path] = []
 
     @classmethod
     def add_new_path(cls, path):
@@ -19,20 +19,10 @@ class GameinfoContentProvider(ContentProviderBase):
         super().__init__(filepath)
         with filepath.open('r') as f:
             self.gameinfo = GameInfoParser(f, filepath)
-            if self.gameinfo.header == "ERROR":
-                self.modname_dir: Path = Path("ERROR")
-                self.project_dir: Path = Path("ERROR")
-                self.modname: str = "ERROR"
-                return
             assert self.gameinfo.header == 'gameinfo', 'Not a gameinfo file'
         if filepath.with_name(filepath.stem + '_srgb.txt').exists():
             with filepath.with_name(filepath.stem + '_srgb.txt').open('r') as f:
                 gameinfo = GameInfoParser(f, filepath.with_name(filepath.stem + '_srgb.txt'))
-                if self.gameinfo.header == "ERROR":
-                    self.modname_dir: Path = Path("ERROR")
-                    self.project_dir: Path = Path("ERROR")
-                    self.modname: str = "ERROR"
-                    return
                 assert self.gameinfo.header == 'gameinfo', 'Not a gameinfo file'
                 og_paths = self.gameinfo.file_system.search_paths
                 srgb_paths = gameinfo.file_system.search_paths
@@ -89,5 +79,5 @@ class GameinfoContentProvider(ContentProviderBase):
         else:
             return None
 
-    def glob(self, pattern: str) -> Iterator[tuple[Path, Buffer]]:
+    def glob(self, pattern: str) -> Iterator[Tuple[Path, Buffer]]:
         yield from self._glob_generic(pattern)

@@ -1,3 +1,4 @@
+from typing import List, Union
 
 import bpy
 from bpy.types import Node
@@ -10,7 +11,7 @@ from .input_material_node import SourceIOMaterialNode
 class SourceIOSkinGroupProto:
     def __init__(self):
         self.name: str = ""
-        self.materials: list[bpy.types.Material] = []
+        self.materials: List[bpy.types.Material] = []
 
     def __str__(self):
         tmp = f'Skingroup\n'
@@ -59,7 +60,7 @@ class SourceIOSkingroupNode(Node, SourceIOModelTreeNode):
 
 class SourceIOSkinProto:
     def __init__(self):
-        self.skins: list[SourceIOSkinGroupProto] = []
+        self.skins: List[SourceIOSkinGroupProto] = []
 
     def __str__(self):
         tmp = "Skins:\n"

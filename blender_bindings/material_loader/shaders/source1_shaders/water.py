@@ -1,6 +1,8 @@
-import bpy
+from typing import Iterable
 
-from ....utils.bpy_utils import is_blender_4
+import bpy
+import numpy as np
+
 from ...shader_base import Nodes
 from ..source1_shader_base import Source1ShaderBase
 
@@ -90,8 +92,8 @@ class Water(Source1ShaderBase):
             print("Failed to establish water plane: " + str(e))
         return
 
-    def create_nodes(self, material):
-        if super().create_nodes(material) in ['UNKNOWN', 'LOADED']:
+    def create_nodes(self, material_name):
+        if super().create_nodes(material_name) in ['UNKNOWN', 'LOADED']:
             return
 
         self.bpy_material.blend_method = 'OPAQUE'
@@ -137,8 +139,5 @@ class Water(Source1ShaderBase):
 
                 self.connect_nodes(bumpmap_node.outputs['Color'], normalmap_node.inputs['Color'])
                 self.connect_nodes(normalmap_node.outputs['Normal'], shader.inputs['Normal'])
-                if is_blender_4():
-                    shader.inputs['Transmission Weight'].default_value = 1.0
-                else:
-                    shader.inputs['Transmission'].default_value = 1.0
+                shader.inputs['Transmission'].default_value = 1.0
                 shader.inputs['Roughness'].default_value = self.bluramount

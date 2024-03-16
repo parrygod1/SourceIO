@@ -1,10 +1,10 @@
 import bpy
 
-from .....logger import SourceLogMan
+from .....logger import SLoggingManager
 from ...shader_base import Nodes
 from ..source1_shader_base import Source1ShaderBase
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 
 class Skybox(Source1ShaderBase):
     SHADER: str = 'sky'
@@ -16,9 +16,9 @@ class Skybox(Source1ShaderBase):
         self.skybox_texture_hdr_alpha = skybox_texture_hdr_alpha
         self.do_arrange = True
 
-    def create_nodes(self, material):
-        self.logger.info(f'Creating material {repr(material.name)}')
-        self.bpy_material = material
+    def create_nodes(self, material_name):
+        self.logger.info(f'Creating material {repr(material_name)}')
+        self.bpy_material = bpy.data.worlds.get(material_name, False) or bpy.data.worlds.new(material_name)
 
         if self.bpy_material is None:
             self.logger.error('Failed to get or create material')

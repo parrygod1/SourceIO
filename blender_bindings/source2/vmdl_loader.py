@@ -1,9 +1,8 @@
 import logging
-from collections import defaultdict
 from struct import pack, unpack
 from itertools import chain
 from pathlib import Path
-from typing import Any, Mapping, Optional, cast
+from typing import Any, List, Mapping, Optional, Tuple, cast
 
 import bpy
 import numpy as np
@@ -25,16 +24,16 @@ from ...library.source2.data_types.keyvalues3.types import NullObject, Object
 from ...library.source2.exceptions import MissingBlock
 from ...library.source2.resource_types import CompiledMeshResource
 from ...library.utils.math_utilities import SOURCE2_HAMMER_UNIT_TO_METERS
-from ..shared.model_container import ModelContainer
-from ..utils.bpy_utils import (add_material, find_layer_collection,
-                               get_new_unique_collection, get_or_create_material)
+from ..material_loader.material_loader import Source2MaterialLoader
+from ..shared.model_container import Source2ModelContainer
+from ..utils.utils import (add_material, find_layer_collection,
+                           get_new_unique_collection)
 from .vmat_loader import load_material
 from .vphy_loader import load_physics
-from ...library.utils.path_utilities import path_stem
 
 
 def put_into_collections(model_container, model_name, parent_collection=None, bodygroup_grouping=False):
-    model_container: ModelContainer
+    model_container: Source2ModelContainer
     static_prop = model_container.armature is None
     if static_prop:
         master_collection = parent_collection or bpy.context.scene.collection
@@ -61,26 +60,28 @@ def put_into_collections(model_container, model_name, parent_collection=None, bo
         attachments_collection = get_new_unique_collection(model_name + '_ATTACHMENTS', master_collection)
         for attachment in model_container.attachments:
             attachments_collection.objects.link(attachment)
-    model_container.master_collection = master_collection
+    model_container.collection = master_collection
     return master_collection
 
 
 def load_model(resource: CompiledModelResource, scale: float = SOURCE2_HAMMER_UNIT_TO_METERS,
                lod_mask: int = 255, import_physics: bool = False, import_attachments: bool = False):
     armature = create_armature(resource, scale)
-    physics_objects = []
+    container = Source2ModelContainer(resource)
+
     if import_physics:
         physics_block = get_physics_block(resource)
         if physics_block is not None:
             objects = load_physics(physics_block, scale)
-            physics_objects = objects
-    container = ModelContainer([], defaultdict(list), physics_objects, [], armature, None)
+            container.physics_objects = objects
+
+    container.armature = armature
     objects = create_meshes(resource, ContentManager(), container, scale, lod_mask, import_attachments)
-    container.objects = objects
     if armature:
         for obj in objects:
             modifier = obj.modifiers.new(type="ARMATURE", name="Armature")
             modifier.object = armature
+    container.objects = objects
 
     return container
 
@@ -143,8 +144,8 @@ def create_armature(resource: CompiledModelResource, scale: float):
     return armature_obj
 
 
-def create_meshes(model_resource: CompiledModelResource, cm: ContentManager, container: ModelContainer,
-                  scale: float, lod_mask: int, import_attachments: bool) -> list[bpy.types.Object]:
+def create_meshes(model_resource: CompiledModelResource, cm: ContentManager, container: Source2ModelContainer,
+                  scale: float, lod_mask: int, import_attachments: bool) -> List[bpy.types.Object]:
     lod_mask = unpack("Q", pack("q", lod_mask))[0]
     data, = model_resource.get_data_block(block_name='DATA')
     ctrl, = model_resource.get_data_block(block_name='CTRL')
@@ -182,7 +183,7 @@ def create_meshes(model_resource: CompiledModelResource, cm: ContentManager, con
     return object_groups
 
 
-def load_internal_mesh(model_resource: CompiledModelResource, cm: ContentManager, container: ModelContainer,
+def load_internal_mesh(model_resource: CompiledModelResource, cm: ContentManager, container: Source2ModelContainer,
                        scale: float,
                        mesh_info: Mapping[str, Any], import_attachments: bool):
     mesh_index = mesh_info['mesh_index']
@@ -197,7 +198,7 @@ def load_internal_mesh(model_resource: CompiledModelResource, cm: ContentManager
     return None
 
 
-def load_external_mesh(model_resource: CompiledModelResource, cm: ContentManager, container: ModelContainer,
+def load_external_mesh(model_resource: CompiledModelResource, cm: ContentManager, container: Source2ModelContainer,
                        scale: float, mesh_id: int,
                        mesh_resource: CompiledMeshResource, import_attachments: bool):
     data_block, = mesh_resource.get_data_block(block_name='DATA')
@@ -258,12 +259,12 @@ def convert_to_float32(uv_array: np.ndarray):
         return (uv_array.astype(np.float32) - dtype_min) / (dtype_max - dtype_min) * 2 - 1
 
 
-def create_mesh(model_resource: CompiledModelResource, cm: ContentManager, container: ModelContainer,
+def create_mesh(model_resource: CompiledModelResource, cm: ContentManager, container: Source2ModelContainer,
                 data_block: KVBlock, vbib_block: VertexIndexBuffer, morph_block: MorphBlock,
                 scale: float, mesh_id: int,
                 mesh_resource: CompiledResource, mesh_name: Optional[str] = None,
-                import_attachments: bool = False) -> list[bpy.types.Object]:
-    objects: list[tuple[str, bpy.types.Object]] = []
+                import_attachments: bool = False) -> List[bpy.types.Object]:
+    objects: List[Tuple[str, bpy.types.Object]] = []
     g_vertex_offset = 0
     if import_attachments:
         load_attachments(data_block["m_attachments"], container, scale)
@@ -313,7 +314,7 @@ def create_mesh(model_resource: CompiledModelResource, cm: ContentManager, conta
             used_vertices = vertices[base_vertex:][used_vertices_ids]
             del used_vertices_ids, part_indices
 
-            material_stem = path_stem(material_name)
+            material_stem = Path(material_name).stem
             model_name = mesh_name or mesh_resource.name
             mesh = bpy.data.meshes.new(f'{model_name}_{material_stem}_mesh')
             mesh_obj = bpy.data.objects.new(f'{model_name}_{material_stem}', mesh)
@@ -335,8 +336,7 @@ def create_mesh(model_resource: CompiledModelResource, cm: ContentManager, conta
 
             mesh.from_pydata(positions, [], new_indices.reshape((-1, 3)).tolist())
             mesh.update()
-            material = get_or_create_material(material_stem, Path(material_name).as_posix())
-            add_material(material, mesh_obj)
+            add_material(material_stem, mesh_obj)
 
             if data_block.get('m_materialGroups', None):
                 default_skin = data_block['m_materialGroups'][0]
@@ -361,7 +361,6 @@ def create_mesh(model_resource: CompiledModelResource, cm: ContentManager, conta
                 vertex_colors_data = vertex_colors.data
                 tmp = np.ones((4,), np.float32)
                 tmp[:3] = tint
-                tmp[:3] = tmp[:3] ** 0.5
                 tint_data = np.full((vertex_count, 4), tmp, np.float32)
                 vertex_colors_data.foreach_set('color', tint_data[vertex_indices].flatten())
             for uv_id in range(16):
@@ -440,7 +439,7 @@ def create_mesh(model_resource: CompiledModelResource, cm: ContentManager, conta
     return objects
 
 
-def load_attachments(attachments_info: list[Object], container: ModelContainer, scale: float):
+def load_attachments(attachments_info: List[Object], container: Source2ModelContainer, scale: float):
     all_attachment = {}
     for attachment in attachments_info:
         if attachment['key'] not in all_attachment:

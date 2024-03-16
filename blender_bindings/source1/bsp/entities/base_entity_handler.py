@@ -2,6 +2,7 @@ import math
 import re
 import traceback
 from pathlib import Path
+from typing import List, Tuple
 
 import bpy
 import numpy as np
@@ -10,21 +11,20 @@ from mathutils import Vector
 from .....library.shared.content_providers.content_manager import \
     ContentManager
 from .....library.utils.math_utilities import ensure_length, lerp_vec
-from .....library.utils.path_utilities import path_stem
-from .....logger import SourceLogMan
+from .....logger import SLoggingManager
 from ....material_loader.material_loader import Source1MaterialLoader
 from ....material_loader.shaders.source1_shaders.sky import Skybox
-from ....utils.bpy_utils import add_material, get_or_create_material
+from ....utils.utils import add_material
 from ...vtf import SkyboxException, load_skybox_texture
 from .abstract_entity_handlers import AbstractEntityHandler, _srgb2lin
 from .base_entity_classes import *
 from .base_entity_classes import entity_class_handle as base_entity_classes
 
 strip_patch_coordinates = re.compile(r"_-?\d+_-?\d+_-?\d+.*$")
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 
 
-def srgb_to_linear(srgb: tuple[float]) -> tuple[list[float], float]:
+def srgb_to_linear(srgb: Tuple[float]) -> Tuple[List[float], float]:
     final_color = []
     if len(srgb) == 4:
         scale = srgb[3] / 255
@@ -294,8 +294,7 @@ class BaseEntityHandler(AbstractEntityHandler):
         self.parent_collection.objects.link(world)
         try:
             skybox_texture, skybox_texture_hdr, skybox_texture_hdr_alpha = load_skybox_texture(entity.skyname, 4096)
-            world_material = bpy.data.worlds.get(entity.skyname, False) or bpy.data.worlds.new(entity.skyname)
-            Skybox(skybox_texture, skybox_texture_hdr, skybox_texture_hdr_alpha).create_nodes(world_material)
+            Skybox(skybox_texture, skybox_texture_hdr, skybox_texture_hdr_alpha).create_nodes(entity.skyname)
             bpy.context.scene.world = bpy.data.worlds[entity.skyname]
         except (SkyboxException, AssertionError):
             self.logger.error('Failed to load Skybox due to:')
@@ -683,15 +682,13 @@ class BaseEntityHandler(AbstractEntityHandler):
         curve_path.use_endpoint_u = True
 
         material_name = start_entity.RopeMaterial
-        stripped_material_name = strip_patch_coordinates.sub("", material_name)
-
-        mat = get_or_create_material(Path(stripped_material_name).name, stripped_material_name)
-        add_material(mat, curve_object)
+        add_material(material_name, curve_object)
         content_manager = ContentManager()
         material_file = content_manager.find_material(material_name)
         if material_file:
-            loader = Source1MaterialLoader(material_file, stripped_material_name)
-            loader.create_material(mat)
+            material_name = strip_patch_coordinates.sub("", material_name)
+            mat = Source1MaterialLoader(material_file, material_name)
+            mat.create_material()
         return curve_object
 
     def handle_path_track(self, entity: path_track, entity_raw: dict):
@@ -744,11 +741,10 @@ class BaseEntityHandler(AbstractEntityHandler):
         material_file = ContentManager().find_material(entity.texture)
         if material_file:
             material_name = strip_patch_coordinates.sub("", material_name)
-            loader = Source1MaterialLoader(material_file, material_name)
-            mat = get_or_create_material(path_stem(material_name), material_name)
-            loader.create_material(mat)
+            mat = Source1MaterialLoader(material_file, material_name)
+            mat.create_material()
 
-            tex_name = loader.vmt.get('$basetexture', None)
+            tex_name = mat.vmt.get('$basetexture', None)
             if not tex_name:
                 return
             tex_name = Path(tex_name).name
@@ -774,8 +770,7 @@ class BaseEntityHandler(AbstractEntityHandler):
         mesh_data.from_pydata(verts, [], [[0, 1, 2, 3]])
 
         uv_data = mesh_data.uv_layers.new().data
-        material = get_or_create_material(path_stem(material_name), material_name)
-        add_material(material, obj)
+        add_material(material_name, obj)
 
         self._set_location_and_scale(obj, entity.origin)
         self._set_entity_data(obj, {'entity': entity_raw})

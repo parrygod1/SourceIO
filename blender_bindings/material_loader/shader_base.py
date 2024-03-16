@@ -1,13 +1,12 @@
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import bpy
 import numpy as np
 
-from ...library.utils.path_utilities import path_stem
-from ...logger import SourceLogMan
-from ..utils.bpy_utils import append_blend
+from ...logger import SLoggingManager
+from ..utils.utils import append_blend
 from .node_arranger import nodes_iterate
 
 
@@ -110,7 +109,7 @@ class Nodes:
     ShaderNodeWireframe = 'ShaderNodeWireframe'
 
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 logger = log_manager.get_logger('MaterialLoader')
 
 
@@ -194,9 +193,8 @@ class ShaderBase:
         return buffer[0::4], buffer[1::4], buffer[2::4], buffer[3::4],
 
     def load_texture_or_default(self, file: str, default_color: tuple = (1.0, 1.0, 1.0, 1.0)):
-        file = Path(file)
-        texture = self.load_texture(file.stem, file.parent)
-        return texture or self.get_missing_texture(f'missing_{file.stem}', default_color)
+        texture = self.load_texture(Path(file).stem, Path(file).parent)
+        return texture or self.get_missing_texture(f'missing_{Path(file).stem}', default_color)
 
     @staticmethod
     def clamp_value(value, min_value=0.0, max_value=1.0):
@@ -262,15 +260,17 @@ class ShaderBase:
         for receiver in receivers:
             self.connect_nodes(middle_output_socket, receiver)
 
-    def create_nodes(self, material):
-        self.bpy_material = material
+    def create_nodes(self, material_name: str):
+        self.logger.info(f'Creating material {repr(material_name)}')
+        self.bpy_material = bpy.data.materials.get(material_name, False) or bpy.data.materials.new(material_name)
+        print("nodes " + material_name)
+
         if self.bpy_material is None:
             self.logger.error('Failed to get or create material')
             return 'UNKNOWN'
 
         if self.bpy_material.get('source_loaded'):
             return 'LOADED'
-        self.logger.info(f'Creating material {repr(material.name)}')
 
         self.bpy_material.use_nodes = True
         self.clean_nodes()
@@ -286,7 +286,7 @@ class ShaderBase:
         nodes_iterate(self.bpy_material.node_tree)
         self.bpy_material.node_tree.nodes.update()
 
-    def handle_transform(self, transform: tuple, socket: bpy.types.NodeSocket, loc=None, *, uv_node=None,
+    def handle_transform(self, transform: Tuple, socket: bpy.types.NodeSocket, loc=None, *, uv_node=None,
                          uv_layer_name=None):
         sys.stdout.write(repr(transform))
         if loc is None:
@@ -311,7 +311,7 @@ class ShaderBase:
         self.connect_nodes(mapping.outputs[0], socket)
         return mapping, uv_node
 
-    def add_uv_mapping(self, scale: tuple[float, float, float], loc=None, uv_layer_name=None):
+    def add_uv_mapping(self, scale: Tuple[float, float, float], loc=None, uv_layer_name=None):
         if loc is None:
             loc = [0, 0]
         uv_node = self.add_uv_node([-300 + loc[0], -20 + loc[1]], uv_layer_name)

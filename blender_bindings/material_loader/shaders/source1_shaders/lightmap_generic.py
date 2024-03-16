@@ -1,4 +1,3 @@
-from ....utils.bpy_utils import is_blender_4
 from ...shader_base import Nodes
 from ..source1_shader_base import Source1ShaderBase
 
@@ -49,8 +48,8 @@ class LightmapGeneric(Source1ShaderBase):
     def translucent(self):
         return self._vmt.get_int('$translucent', 0) == 1
 
-    def create_nodes(self, material):
-        if super().create_nodes(material) in ['UNKNOWN', 'LOADED']:
+    def create_nodes(self, material_name):
+        if super().create_nodes(material_name) in ['UNKNOWN', 'LOADED']:
             return
 
         if self.isskybox:
@@ -89,10 +88,7 @@ class LightmapGeneric(Source1ShaderBase):
             self.connect_nodes(normalmap_node.outputs['Normal'], shader.inputs['Normal'])
 
         if not self.phong:
-            if is_blender_4():
-                shader.inputs['Specular IOR Level'].default_value = 0
-            else:
-                shader.inputs['Specular'].default_value = 0
+            shader.inputs['Specular'].default_value = 0
 
 
 class ReflectiveLightmapGeneric(LightmapGeneric):

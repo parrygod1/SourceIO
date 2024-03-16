@@ -1,4 +1,6 @@
 
+from typing import Collection, List
+
 import numpy as np
 
 from ...shared.intermidiate_data.bone import Bone, BoneFlags
@@ -12,11 +14,11 @@ class CompiledModelResource(CompiledResource):
         data, = self.get_data_block(block_name='DATA')
         return data['m_name']
 
-    def get_bones(self) -> list[Bone]:
+    def get_bones(self) -> List[Bone]:
         data, = self.get_data_block(block_name='DATA')
         if data is None:
             raise MissingBlock('Required block "DATA" is missing')
-        bones: list[Bone] = []
+        bones: List[Bone] = []
 
         model_skeleton = data['m_modelSkeleton']
         names = model_skeleton['m_boneName']

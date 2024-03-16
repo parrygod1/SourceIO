@@ -14,5 +14,5 @@ class SLogger(_BPYLogger):
     pass
 
 
-class SourceLogMan(_BPYLoggingManager):
+class SLoggingManager(_BPYLoggingManager):
     pass

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Tuple
 import bpy
 import numpy as np
 
@@ -7,11 +7,11 @@ from ...utils.texture_utils import check_texture_cache
 from ....library.shared.content_providers.content_manager import ContentManager
 from ....library.source2.resource_types import (CompiledMaterialResource,
                                                 CompiledTextureResource)
-from ....logger import SourceLogMan
+from ....logger import SLoggingManager
 from ...source2.vtex_loader import import_texture
 from ..shader_base import ShaderBase, Nodes
 
-logger = SourceLogMan().get_logger("Source2::Shader")
+logger = SLoggingManager().get_logger("Source2::Shader")
 
 
 class Source2ShaderBase(ShaderBase):
@@ -27,7 +27,7 @@ class Source2ShaderBase(ShaderBase):
             return self._material_resource.get_child_resource(texture_path, ContentManager()) is not None
         return False
 
-    def _get_texture(self, slot_name: str, default_color: tuple[float, float, float, float],
+    def _get_texture(self, slot_name: str, default_color: Tuple[float, float, float, float],
                      is_data=False,
                      invert_y: bool = False):
         texture_path = self._material_resource.get_texture_property(slot_name, None)

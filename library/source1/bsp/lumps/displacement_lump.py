@@ -1,4 +1,4 @@
-
+from typing import List
 
 import numpy as np
 
@@ -13,7 +13,7 @@ from . import SteamAppId
 class DispInfoLump(Lump):
     def __init__(self, lump_info: LumpInfo):
         super().__init__(lump_info)
-        self.infos: list[DispInfo] = []
+        self.infos: List[DispInfo] = []
 
     def parse(self, buffer: Buffer, bsp: 'BSPFile'):
         while buffer:
@@ -25,7 +25,7 @@ class DispInfoLump(Lump):
 class VDispInfoLump(Lump):
     def __init__(self, lump_info: LumpInfo):
         super().__init__(lump_info)
-        self.infos: list[DispInfo] = []
+        self.infos: List[DispInfo] = []
 
     def parse(self, buffer: Buffer, bsp: 'BSPFile'):
         while buffer:
@@ -34,7 +34,7 @@ class VDispInfoLump(Lump):
 
 
 @lump_tag(33, 'LUMP_DISP_VERTS')
-class DispVertLump(Lump):
+class DispVert(Lump):
     dtype = np.dtype(
         [
             ('position', np.float32, (3,)),
@@ -59,7 +59,7 @@ class DispVertLump(Lump):
 
 @lump_tag(61, 'LUMP_DISP_MULTIBLEND', bsp_version=20, steam_id=SteamAppId.BLACK_MESA)
 @lump_tag(63, 'LUMP_DISP_MULTIBLEND', bsp_version=21)
-class DispMultiblendLump(Lump):
+class DispMultiblend(Lump):
     dtype = np.dtype(
         [
             ('multiblend', np.float32, (4,)),

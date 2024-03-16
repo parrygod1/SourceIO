@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Type
+from typing import Any, Dict, List, Type
 
 import bpy
 from mathutils import Matrix
@@ -11,33 +11,24 @@ from ....library.source2 import CompiledWorldResource
 from ....library.source2.data_types.keyvalues3.types import Object
 from ....library.source2.resource_types.compiled_world_resource import (
     CompiledEntityLumpResource, CompiledMapResource, CompiledWorldNodeResource)
-from ....library.source2.resource_types import CompiledManifestResource
 from ....library.utils.math_utilities import SOURCE2_HAMMER_UNIT_TO_METERS
-from ....logger import SourceLogMan
-from ...utils.bpy_utils import get_or_create_collection
+from ....logger import SLoggingManager
+from ...utils.utils import get_or_create_collection
 from .entities.base_entity_handlers import BaseEntityHandler
 from .entities.hlvr_entity_handlers import HLVREntityHandler
 from .entities.sbox_entity_handlers import SBoxEntityHandler
 from .entities.steampal_entity_handlers import SteamPalEntityHandler
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 
 logger = log_manager.get_logger("VWRLD")
 
 
-def get_entity_name(entity_data: dict[str, Any]):
+def get_entity_name(entity_data: Dict[str, Any]):
     return f'{entity_data.get("targetname", entity_data.get("hammeruniqueid", "missing_hammer_id"))}'
 
 
 def load_map(map_resource: CompiledMapResource, cm: ContentManager, scale: float = SOURCE2_HAMMER_UNIT_TO_METERS):
-    manifest_resource_path = next(filter(lambda a: a.endswith(".vrman"), map_resource.get_child_resources()), None)
-    if manifest_resource_path is not None:
-        manifest_resource = map_resource.get_child_resource(manifest_resource_path, cm, CompiledManifestResource)
-        world_resource_path = next(filter(lambda a: a.endswith(".vwrld"), manifest_resource.get_child_resources()), None)
-        if world_resource_path is not None:
-            world_resource = manifest_resource.get_child_resource(world_resource_path, cm)
-            return import_world(world_resource, map_resource, cm, scale)
-
     world_resource_path = next(filter(lambda a: a.endswith(".vwrld"), map_resource.get_child_resources()), None)
     if world_resource_path is not None:
         world_resource = map_resource.get_child_resource(world_resource_path, cm)

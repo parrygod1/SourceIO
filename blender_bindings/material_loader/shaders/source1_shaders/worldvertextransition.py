@@ -1,4 +1,3 @@
-from ....utils.bpy_utils import is_blender_4
 from ...shader_base import Nodes
 from ..source1_shader_base import Source1ShaderBase
 
@@ -64,8 +63,8 @@ class WorldVertexTransition(Source1ShaderBase):
     def phongboost(self):
         return self._vmt.get_float('$phongboost', 1)
 
-    def create_nodes(self, material):
-        if super().create_nodes(material) in ['UNKNOWN', 'LOADED']:
+    def create_nodes(self, material_name):
+        if super().create_nodes(material_name) in ['UNKNOWN', 'LOADED']:
             return
 
         material_output = self.create_node(Nodes.ShaderNodeOutputMaterial)
@@ -92,7 +91,4 @@ class WorldVertexTransition(Source1ShaderBase):
             self.connect_nodes(color_mix.outputs['Color'], shader.inputs['Base Color'])
 
         if not self.phong:
-            if is_blender_4():
-                shader.inputs['Specular IOR Level'].default_value = 0
-            else:
-                shader.inputs['Specular'].default_value = 0
+            shader.inputs['Specular'].default_value = 0

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from typing import Dict
 
 from .....utils import Buffer
 
@@ -27,7 +27,7 @@ class Enum:
     name: str
     disc_crc: int
     user_version: int
-    values: dict[int, EnumValue]
+    values: Dict[int, EnumValue]
 
     @classmethod
     def from_buffer(cls, buffer: Buffer):

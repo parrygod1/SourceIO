@@ -133,7 +133,7 @@ VALUE_READERS = {
 KEY_LOOKUP = EntityKeyValuesKeys()
 
 
-class EntityKeyValues(dict[str, Any]):
+class EntityKeyValues(Dict[str, Any]):
 
     @classmethod
     def from_buffer(cls, buffer: Buffer):

@@ -1,4 +1,7 @@
-from ....utils.bpy_utils import is_blender_4
+from typing import Iterable
+
+import numpy as np
+
 from ...shader_base import Nodes
 from ..source1_shader_base import Source1ShaderBase
 
@@ -60,8 +63,8 @@ class Refract(Source1ShaderBase):
             color_value = [color_value[0], color_value[0], color_value[0]]
         return color_value
 
-    def create_nodes(self, material):
-        if super().create_nodes(material) in ['UNKNOWN', 'LOADED']:
+    def create_nodes(self, material_name):
+        if super().create_nodes(material_name) in ['UNKNOWN', 'LOADED']:
             return
 
         self.bpy_material.blend_method = 'OPAQUE'
@@ -88,8 +91,5 @@ class Refract(Source1ShaderBase):
             self.create_and_connect_texture_node(bumpmap, normalmap_node.inputs['Color'], name='$bumpmap')
 
             self.connect_nodes(normalmap_node.outputs['Normal'], shader.inputs['Normal'])
-            if is_blender_4():
-                shader.inputs['Transmission Weight'].default_value = 1.0
-            else:
-                shader.inputs['Transmission'].default_value = 1.0
+            shader.inputs['Transmission'].default_value = 1.0
             shader.inputs['Roughness'].default_value = self.bluramount

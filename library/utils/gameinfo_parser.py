@@ -1,11 +1,11 @@
 from io import BufferedIOBase, BytesIO, StringIO, TextIOBase
 from pathlib import Path
-from typing import IO, Union
+from typing import IO, List, Union
 
-from ...logger import SourceLogMan
+from ...logger import SLoggingManager
 from ..utils.s1_keyvalues import KVParser
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 logger = log_manager.get_logger('GameInfoParser')
 
 
@@ -35,7 +35,7 @@ class GameInfoParser:
                 return value
 
             @property
-            def all_paths(self) -> list[str]:
+            def all_paths(self) -> List[str]:
                 paths = []
                 for value in self._raw_data.values():
                     if isinstance(value, str):
@@ -74,16 +74,10 @@ class GameInfoParser:
             raise ValueError(f'Unknown input value type {type(file_or_string)}')
 
         self._parser = KVParser(str(path), self._buffer)
-        parse = self._parser.parse()
-        if len(parse) == 2:
-            self.header, self._raw_data = parse
-        else:
-            logger.error(f"Failed to parse {path}, got 1 output instead of 2: {parse}")
-            self.header = "ERROR"
-            self._raw_data = {}
+        self.header, self._raw_data = self._parser.parse()
 
     @property
-    def all_paths(self) -> list[Path]:
+    def all_paths(self) -> List[Path]:
         paths = []
         for path in self.file_system.search_paths.all_paths:
             try:

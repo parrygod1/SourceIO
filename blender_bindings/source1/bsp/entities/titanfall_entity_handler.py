@@ -13,7 +13,7 @@ from .....library.source1.bsp.lumps.material_sort_lump import *
 from .....library.source1.bsp.lumps.mesh_lump import *
 from .....library.source1.bsp.lumps.vertex_lump import *
 from .....library.source1.bsp.lumps.vertex_normal_lump import *
-from ....utils.bpy_utils import add_material
+from ....utils.utils import add_material
 from ..entities.base_entity_handler import BaseEntityHandler
 from ..entities.r1_entity_classes import (Base, entity_class_handle,
                                           func_window_hint,
@@ -29,7 +29,7 @@ class TitanfallEntityHandler(BaseEntityHandler):
     def _load_brush_model(self, model_id, model_name):
         objs = []
         model: RespawnModel = self._bsp.get_lump("LUMP_MODELS").models[model_id]
-        tex_data: list[TextureData] = self._bsp.get_lump("LUMP_TEXDATA").texture_data
+        tex_data: List[TextureData] = self._bsp.get_lump("LUMP_TEXDATA").texture_data
         indices: np.ndarray = self._bsp.get_lump("LUMP_INDICES").indices
         bsp_vertices: np.ndarray = self._bsp.get_lump('LUMP_VERTICES').vertices
 

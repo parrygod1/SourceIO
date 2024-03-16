@@ -7,14 +7,13 @@ from .....library.shared.content_providers.content_manager import \
     ContentManager
 from .....library.source2 import CompiledTextureResource
 from .....library.source2.data_types.blocks.texture_data import VTexFormat
-from .....library.utils.path_utilities import path_stem
 from .....library.utils.thirdparty.equilib.cube2equi_numpy import \
     run as convert_to_eq
-from .....logger import SourceLogMan
+from .....logger import SLoggingManager
 from ...shader_base import Nodes
 from ..source2_shader_base import Source2ShaderBase
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 
 
 class Skybox(Source2ShaderBase):
@@ -48,7 +47,7 @@ class Skybox(Source2ShaderBase):
             pixel_data = convert_to_eq(faces, "dict", 2048, 1024, 'default', 'bilinear').T
             pixel_data = np.rot90(pixel_data, 1)
             # pixel_data = np.flipud(pixel_data)
-            name = path_stem(texture_path)
+            name = Path(texture_path).stem
             image = bpy.data.images.new(
                 name + '.tga',
                 width=2048,
@@ -72,9 +71,9 @@ class Skybox(Source2ShaderBase):
             return image
         return None
 
-    def create_nodes(self, material):
-        self.logger.info(f'Creating material {repr(material.name)}')
-        self.bpy_material = material
+    def create_nodes(self, material_name):
+        self.logger.info(f'Creating material {repr(material_name)}')
+        self.bpy_material = bpy.data.worlds.get(material_name, False) or bpy.data.worlds.new(material_name)
 
         if self.bpy_material is None:
             self.logger.error('Failed to get or create material')

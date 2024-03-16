@@ -1,14 +1,14 @@
 from pathlib import Path
 import charset_normalizer
 
-from .....logger import SourceLogMan
+from .....logger import SLoggingManager
 from ....utils import Buffer
 from ....utils.kv_parser import ValveKeyValueParser
 from ....utils.s1_keyvalues import KVParser
 from .. import Lump, LumpInfo, lump_tag
 from ..bsp_file import BSPFile
 
-log_manager = SourceLogMan()
+log_manager = SLoggingManager()
 
 
 @lump_tag(0, 'LUMP_ENTITIES')

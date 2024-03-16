@@ -1,11 +1,11 @@
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Iterator, Mapping, Union
+from typing import Iterator, List, Mapping, Tuple, Union
 
 __all__ = ["KVLexerException", "KVParserException", "ValveKeyValueParser", "KeyValuePair", "KVDataProxy"]
 
-KeyValuePair = tuple[str, Union[str, 'KeyValuePair', list['KeyValuePair']]]
+KeyValuePair = Tuple[str, Union[str, 'KeyValuePair', List['KeyValuePair']]]
 
 
 class KVDataProxy(Mapping):
@@ -19,7 +19,7 @@ class KVDataProxy(Mapping):
                         '<dx90_20b': False
                         }
 
-    def __init__(self, data: list[KeyValuePair]):
+    def __init__(self, data: List[KeyValuePair]):
         self.data = data
 
     def __contains__(self, item):
@@ -64,7 +64,7 @@ class KVDataProxy(Mapping):
                     return self._wrap_value(value)
         return default
 
-    def get_multiple(self, name) -> list["KVDataProxy"]:
+    def get_multiple(self, name) -> List["KVDataProxy"]:
         data = []
         name = name.lower()
         for key, value in self.data:
@@ -81,7 +81,7 @@ class KVDataProxy(Mapping):
                     data.append(self._wrap_value(value))
         return data
 
-    def top(self) -> tuple[str, Union[str, 'KVDataProxy']]:
+    def top(self) -> Tuple[str, Union[str, 'KVDataProxy']]:
         # assert len(self.data) == 1
         if len(self.data) > 1:
             print("More than one root node:")
@@ -150,7 +150,7 @@ class VKVToken(Enum):
 class ValveKeyValueLexer:
 
     def __init__(self, buffer: str, buffer_name: str = '<memory>'):
-        self.buffer = buffer.replace('\r\n', '\n').replace("\\", "/")
+        self.buffer = buffer.replace('\r\n', '\n')
         self.buffer_name = buffer_name
         self._offset = 0
         self._line = 1
@@ -315,7 +315,7 @@ class ValveKeyValueLexer:
 
 
 class ValveKeyValueParser:
-    def __init__(self, path: Union[Path, str] = None, buffer_and_name: tuple[str, str] = None, self_recover=False,
+    def __init__(self, path: Union[Path, str] = None, buffer_and_name: Tuple[str, str] = None, self_recover=False,
                  array_of_blocks=False):
         if path is not None:
             self._path = Path(path)

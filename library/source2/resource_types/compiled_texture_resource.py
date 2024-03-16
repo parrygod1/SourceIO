@@ -1,7 +1,8 @@
 import io
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, Type
+from pathlib import Path
+from typing import Dict, Optional, Tuple, Type
 
 import numpy as np
 import numpy.typing as npt
@@ -19,7 +20,7 @@ logger = logging.getLogger('CompiledTextureResource')
 
 @dataclass(slots=True)
 class CompiledTextureResource(CompiledResource):
-    _cached_mips: dict[int, tuple[npt.NDArray, bool]] = field(default_factory=dict)
+    _cached_mips: Dict[int, Tuple[npt.NDArray, bool]] = field(default_factory=dict)
 
     def _get_block_class(self, name) -> Type[BaseBlock]:
         if name == 'DATA':
